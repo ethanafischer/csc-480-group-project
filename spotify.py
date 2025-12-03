@@ -53,6 +53,29 @@ def get_songs_by_artist(token, artist_id):
     return json_data
 
 
+def search_tracks(token, query, limit=10):
+    url = f"{BASE_URL}/search"
+    headers = get_auth_headers(token)
+    params = {
+        "q": query,
+        "type": "track",
+        "limit": limit,
+    }
+    result = requests.get(url, headers=headers, params=params)
+    result.raise_for_status()
+    return result.json()["tracks"]["items"]
+
+
+def format_tracks(tracks):
+    formatted = []
+    for t in tracks:
+        name = t["name"]
+        artists = ", ".join(a["name"] for a in t["artists"])
+        url = t["external_urls"]["spotify"]
+        formatted.append(f"{name} — {artists} — {url}")
+    return formatted
+
+
 if __name__ == "__main__":
     token = get_spotify_token()
     artist = search_artist(token, "Bad Bunny")
