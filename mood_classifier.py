@@ -8,12 +8,6 @@ URL = "http://localhost:11434/api/chat"
 MOOD_LABELS = ["happy", "sad", "calm", "energetic", "focus", "party"]
 
 def classify_mood(text: str):
-    """
-    Call the local LLM to classify mood from arbitrary text.
-    Returns a list of (label, score) sorted by score desc, e.g.:
-    [("happy", 0.82), ("energetic", 0.61), ...]
-    """
-
     system_prompt = (
         "You are a mood classifier. "
         "Given the user's description of their mood or context, "
