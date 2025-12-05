@@ -228,7 +228,7 @@ def page_clusters(rec: VibeRecommender) -> None:
 
 def main() -> None:
     """Entry point for the Streamlit app."""
-    st.set_page_config(page_title="VibeMatch", page_icon="", layout="wide")
+    st.set_page_config(page_title="Mood To Song Bot", page_icon="", layout="wide")
 
     st.title("Mood To Song Bot")
     st.write("An AI-driven vibe-based song recommender using Spotify audio features.")
