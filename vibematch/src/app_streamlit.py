@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 import streamlit as st
@@ -34,26 +34,22 @@ def make_track_link(row: pd.Series) -> str:
 
 def render_recs_table(recs: pd.DataFrame, extra_cols: List[str]) -> None:
     """
-    Render recommendations as an HTML table with the song title hyperlinked.
-
-    Parameters
-    ----------
-    recs : pd.DataFrame
-        Recommendations dataframe.
-    extra_cols : list[str]
-        Column names to show in addition to the title.
+    Render recommendations as a standard Streamlit dataframe, similar to the
+    cluster pages. The title is shown as plain text (no hyperlink) so the
+    table layout matches other pages.
     """
     if recs.empty:
         st.info("No recommendations found.")
         return
 
     recs = recs.copy()
-    recs["Title"] = recs.apply(make_track_link, axis=1)
 
-    cols = ["Title"] + [c for c in extra_cols if c in recs.columns]
+    # Always show track name first, then any requested extra columns that exist.
+    cols = [ID_COL_TRACK_NAME] + [c for c in extra_cols if c in recs.columns]
     df_display = recs[cols].reset_index(drop=True)
+    df_display = df_display.rename(columns={ID_COL_TRACK_NAME: "Title"})
 
-    st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+    st.dataframe(df_display)
 
 
 def page_seed_track(rec: VibeRecommender) -> None:
