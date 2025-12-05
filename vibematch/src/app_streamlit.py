@@ -1,28 +1,25 @@
-import streamlit as st
-import pandas as pd
+from typing import List, Optional
 
-from recommender import VibeRecommender
+import pandas as pd
+import streamlit as st
+
 from config import (
-    ID_COL_TRACK_NAME,
     ID_COL_ARTISTS,
     ID_COL_GENRE,
     ID_COL_TRACK_ID,
+    ID_COL_TRACK_NAME,
 )
+from recommender import VibeRecommender
+
+
+SPOTIFY_TRACK_BASE_URL: str = "https://open.spotify.com/track/"
 
 
 @st.cache_resource
 def load_recommender() -> VibeRecommender:
+    """Load and cache the VibeRecommender instance."""
     # Adjust path if running from a different working directory
     return VibeRecommender.from_csv("data/spotify_tracks.csv")
-
-
-def format_track_row(row: pd.Series) -> str:
-    artist = row.get(ID_COL_ARTISTS, "Unknown artist")
-    name = row.get(ID_COL_TRACK_NAME, "Unknown track")
-    return f"{name} — {artist}"
-
-
-SPOTIFY_TRACK_BASE_URL = "https://open.spotify.com/track/"
 
 
 def make_track_link(row: pd.Series) -> str:
@@ -34,10 +31,17 @@ def make_track_link(row: pd.Series) -> str:
     url = f"{SPOTIFY_TRACK_BASE_URL}{track_id}"
     return f'<a href="{url}" target="_blank">{name}</a>'
 
-def render_recs_table(recs: pd.DataFrame, extra_cols) -> None:
+
+def render_recs_table(recs: pd.DataFrame, extra_cols: List[str]) -> None:
     """
     Render recommendations as an HTML table with the song title hyperlinked.
-    extra_cols: list of column names to show in addition to the title.
+
+    Parameters
+    ----------
+    recs : pd.DataFrame
+        Recommendations dataframe.
+    extra_cols : list[str]
+        Column names to show in addition to the title.
     """
     if recs.empty:
         st.info("No recommendations found.")
@@ -51,8 +55,10 @@ def render_recs_table(recs: pd.DataFrame, extra_cols) -> None:
 
     st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-def page_seed_track(rec: VibeRecommender):
-    st.header("🎧 Recommend by Seed Track")
+
+def page_seed_track(rec: VibeRecommender) -> None:
+    """Streamlit page: recommend tracks based on a seed track."""
+    st.header("Recommend by Seed Track")
 
     st.write("Search for a track by name (and optionally by artist), then pick it as the seed.")
 
@@ -64,14 +70,20 @@ def page_seed_track(rec: VibeRecommender):
 
     if search_name:
         candidates = candidates[
-            candidates[ID_COL_TRACK_NAME]
-            .str.contains(search_name, case=False, na=False)
+            candidates[ID_COL_TRACK_NAME].str.contains(
+                search_name,
+                case=False,
+                na=False,
+            )
         ]
 
     if search_artist:
         candidates = candidates[
-            candidates[ID_COL_ARTISTS]
-            .str.contains(search_artist, case=False, na=False)
+            candidates[ID_COL_ARTISTS].str.contains(
+                search_artist,
+                case=False,
+                na=False,
+            )
         ]
 
     MAX_OPTIONS = 50
@@ -127,7 +139,8 @@ def page_seed_track(rec: VibeRecommender):
         )
 
 
-def page_mood(rec: VibeRecommender):
+def page_mood(rec: VibeRecommender) -> None:
+    """Streamlit page: recommend tracks based on mood sliders."""
     st.header("Recommend by Mood")
 
     st.write("Use the sliders to set the vibe you want:")
@@ -140,7 +153,7 @@ def page_mood(rec: VibeRecommender):
 
     advanced = st.checkbox("Show advanced audio controls")
 
-    extra_overrides = None
+    extra_overrides: Optional[dict] = None
 
     if advanced:
         st.subheader("Advanced controls")
@@ -201,8 +214,9 @@ def page_mood(rec: VibeRecommender):
         render_recs_table(recs, extra_cols=base_cols)
 
 
-def page_clusters(rec: VibeRecommender):
-    st.header("🧠 Mood Clusters")
+def page_clusters(rec: VibeRecommender) -> None:
+    """Streamlit page: inspect cluster summaries and sample tracks."""
+    st.header("Mood Clusters")
 
     st.subheader("Cluster summary (average features)")
     summary = rec.describe_clusters()
@@ -211,16 +225,16 @@ def page_clusters(rec: VibeRecommender):
     cluster_labels = sorted(rec.df["mood_cluster"].unique())
     cluster = st.selectbox("Inspect cluster", options=cluster_labels)
 
-    n_samples = st.slider("Number of example tracks", 5, 30, 10)
-    samples = rec.sample_cluster_tracks(cluster_label=cluster, n=n_samples)
+    samples = rec.sample_cluster_tracks(cluster_label=cluster, n=30)
     st.subheader(f"Example tracks in cluster {cluster}")
     st.dataframe(samples.reset_index(drop=True))
 
 
-def main():
-    st.set_page_config(page_title="VibeMatch", page_icon="🎵", layout="wide")
+def main() -> None:
+    """Entry point for the Streamlit app."""
+    st.set_page_config(page_title="VibeMatch", page_icon="", layout="wide")
 
-    st.title("VibeMatch 🎵")
+    st.title("Mood To Song Bot")
     st.write("An AI-driven vibe-based song recommender using Spotify audio features.")
 
     rec = load_recommender()

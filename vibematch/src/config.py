@@ -1,5 +1,7 @@
 from typing import List
 
+"""Configuration constants for the VibeMatch recommender."""
+
 # Columns used as numeric features
 FEATURE_COLUMNS: List[str] = [
     "danceability",
@@ -16,12 +18,13 @@ FEATURE_COLUMNS: List[str] = [
 ]
 
 # Columns with identifying metadata
-ID_COL_TRACK_ID = "track_id"
-ID_COL_TRACK_NAME = "track_name"
-ID_COL_ARTISTS = "artists"
-ID_COL_GENRE = "track_genre"
+ID_COL_TRACK_ID: str = "track_id"
+ID_COL_TRACK_NAME: str = "track_name"
+ID_COL_ARTISTS: str = "artists"
+ID_COL_GENRE: str = "track_genre"
 
 # Default modeling hyperparameters
-DEFAULT_N_CLUSTERS = 5
-DEFAULT_N_NEIGHBORS = 30  # we’ll filter out the seed + then take top-n user wants
-RANDOM_STATE = 42
+DEFAULT_N_CLUSTERS: int = 5
+# We'll filter out the seed, then take the top-n the user wants
+DEFAULT_N_NEIGHBORS: int = 30
+RANDOM_STATE: int = 42

@@ -8,13 +8,13 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from config import (
+    DEFAULT_N_CLUSTERS,
+    DEFAULT_N_NEIGHBORS,
     FEATURE_COLUMNS,
     ID_COL_ARTISTS,
     ID_COL_GENRE,
     ID_COL_TRACK_ID,
     ID_COL_TRACK_NAME,
-    DEFAULT_N_CLUSTERS,
-    DEFAULT_N_NEIGHBORS,
 )
 from models import VibeModels
 from preprocess import PreprocessResult, preprocess_pipeline
@@ -22,6 +22,7 @@ from preprocess import PreprocessResult, preprocess_pipeline
 
 @dataclass
 class VibeRecommender:
+    """Main interface for computing and serving VibeMatch recommendations."""
     df: pd.DataFrame
     X_scaled: np.ndarray
     feature_columns: List[str]
@@ -36,13 +37,23 @@ class VibeRecommender:
         n_clusters: int = DEFAULT_N_CLUSTERS,
         n_neighbors: int = DEFAULT_N_NEIGHBORS,
     ) -> "VibeRecommender":
+        """
+        Build a VibeRecommender from a CSV file.
+
+        This runs the full preprocessing pipeline and fits clustering
+        and nearest-neighbor models.
+        """
         if feature_columns is None:
             feature_columns = FEATURE_COLUMNS
 
         prep: PreprocessResult = preprocess_pipeline(csv_path, feature_columns)
-        models = VibeModels.fit(prep.X_scaled, n_clusters=n_clusters, n_neighbors=n_neighbors)
+        models = VibeModels.fit(
+            prep.X_scaled,
+            n_clusters=n_clusters,
+            n_neighbors=n_neighbors,
+        )
 
-        # assign mood clusters
+        # Assign mood clusters
         clusters = models.assign_clusters(prep.X_scaled)
         df_with_clusters = prep.df.copy()
         df_with_clusters["mood_cluster"] = clusters
@@ -58,6 +69,7 @@ class VibeRecommender:
     # ---------- internal helpers ----------
 
     def _get_track_indices_by_name(self, track_name: str) -> List[int]:
+        """Return indices of rows whose track name matches (case-insensitive)."""
         mask = self.df[ID_COL_TRACK_NAME].str.lower() == track_name.lower()
         return list(self.df[mask].index)
 
@@ -67,7 +79,8 @@ class VibeRecommender:
     ) -> np.ndarray:
         """
         Build a full feature vector from partial user input.
-        For unspecified features, use dataset means.
+
+        For unspecified features, dataset means are used.
         """
         base = self.df[self.feature_columns].mean().to_dict()
         base.update(overrides)
@@ -83,10 +96,15 @@ class VibeRecommender:
         exclude_index: Optional[int] = None,
     ) -> pd.DataFrame:
         """
-        Get up to n nearest rows (by index), optionally excluding a specific row index.
+        Get up to n nearest rows (by index), optionally excluding a specific row.
+
         This returns a pool; de-duplication happens separately.
         """
-        distances, indices = self.models.query_neighbors(self.X_scaled, query_vec, n_neighbors=n)
+        distances, indices = self.models.query_neighbors(
+            self.X_scaled,
+            query_vec,
+            n_neighbors=n,
+        )
 
         idx_list: List[int] = []
         dist_list: List[float] = []
@@ -110,7 +128,8 @@ class VibeRecommender:
         seed_key: Optional[Tuple[str, str]] = None,
     ) -> pd.DataFrame:
         """
-        Remove duplicates based on (track_name, artist) and optionally drop the seed track itself.
+        Remove duplicates based on (track_name, artist) and optionally drop the seed.
+
         Then keep the closest n by distance.
         """
         work = recs.copy()
@@ -129,7 +148,10 @@ class VibeRecommender:
         if ID_COL_TRACK_NAME in work.columns and ID_COL_ARTISTS in work.columns:
             work = (
                 work.sort_values("distance", ascending=True)
-                .drop_duplicates(subset=[ID_COL_TRACK_NAME, ID_COL_ARTISTS], keep="first")
+                .drop_duplicates(
+                    subset=[ID_COL_TRACK_NAME, ID_COL_ARTISTS],
+                    keep="first",
+                )
             )
 
         return work.head(n)
@@ -144,8 +166,11 @@ class VibeRecommender:
     ) -> Tuple[Optional[pd.Series], pd.DataFrame]:
         """
         Recommend songs similar to a seed track.
-        Returns (seed_row, recommendations_df).
-        If track not found, (None, empty_df).
+
+        Returns
+        -------
+        (seed_row, recommendations_df)
+            If track not found, returns (None, empty_df).
         """
         indices = self._get_track_indices_by_name(track_name)
         if not indices:
@@ -154,7 +179,11 @@ class VibeRecommender:
         # If multiple matches and artist_hint provided, try to pick that
         if artist_hint:
             candidates = self.df.loc[indices]
-            mask = candidates[ID_COL_ARTISTS].str.contains(artist_hint, case=False, na=False)
+            mask = candidates[ID_COL_ARTISTS].str.contains(
+                artist_hint,
+                case=False,
+                na=False,
+            )
             filtered = candidates[mask]
             if not filtered.empty:
                 seed_idx = int(filtered.index[0])
@@ -203,14 +232,14 @@ class VibeRecommender:
             Optional extra feature values (e.g. acousticness, tempo).
             If None, only the three basic sliders are used.
         """
-        # always set these three
+        # Always set these three
         overrides: Dict[str, float] = {
             "energy": energy,
             "valence": valence,
             "danceability": danceability,
         }
 
-        # only merge extras if explicitly passed
+        # Only merge extras if explicitly passed
         if extra_overrides is not None:
             overrides.update(extra_overrides)
 
@@ -227,9 +256,7 @@ class VibeRecommender:
         return recs
 
     def describe_clusters(self) -> pd.DataFrame:
-        """
-        Return average feature values per cluster (for interpretability).
-        """
+        """Return average feature values per cluster (for interpretability)."""
         group = self.df.groupby("mood_cluster")[self.feature_columns]
         summary = group.mean().reset_index()
         return summary[["mood_cluster"] + self.feature_columns]
@@ -237,6 +264,8 @@ class VibeRecommender:
     def sample_cluster_tracks(self, cluster_label: int, n: int = 10) -> pd.DataFrame:
         """
         Sample example tracks from a mood cluster.
+
+        Returns a dataframe with ID columns, cluster label, and feature values.
         """
         subset = self.df[self.df["mood_cluster"] == cluster_label]
         return subset.sample(n=min(n, len(subset)), random_state=0)[

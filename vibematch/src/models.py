@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Tuple
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -12,6 +12,7 @@ from config import DEFAULT_N_CLUSTERS, DEFAULT_N_NEIGHBORS, RANDOM_STATE
 
 @dataclass
 class VibeModels:
+    """Wrapper for fitted KMeans and NearestNeighbors models."""
     kmeans: KMeans
     knn: NearestNeighbors
 
@@ -22,7 +23,8 @@ class VibeModels:
         n_clusters: int = DEFAULT_N_CLUSTERS,
         n_neighbors: int = DEFAULT_N_NEIGHBORS,
     ) -> "VibeModels":
-        # k-means for mood clusters
+        """Fit KMeans and NearestNeighbors on the scaled feature matrix."""
+        # K-means for mood clusters
         kmeans = KMeans(
             n_clusters=n_clusters,
             random_state=RANDOM_STATE,
@@ -41,17 +43,33 @@ class VibeModels:
         return cls(kmeans=kmeans, knn=knn)
 
     def assign_clusters(self, X_scaled: np.ndarray) -> np.ndarray:
+        """Assign cluster labels for each row in X_scaled."""
         return self.kmeans.predict(X_scaled)
 
     def query_neighbors(
         self,
-        X_scaled: np.ndarray,
+        X_scaled: np.ndarray,  # kept for API compatibility; not used directly
         query_vector: np.ndarray,
         n_neighbors: int,
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        query_vector: shape (n_features,) or (1, n_features)
-        Returns distances, indices.
+        Query nearest neighbors for a single query vector.
+
+        Parameters
+        ----------
+        X_scaled : np.ndarray
+            Unused; retained for backwards compatibility.
+        query_vector : np.ndarray
+            Shape (n_features,) or (1, n_features).
+        n_neighbors : int
+            Number of neighbors to request (capped by fitted knn.n_neighbors).
+
+        Returns
+        -------
+        distances : np.ndarray
+            1D array of neighbor distances.
+        indices : np.ndarray
+            1D array of neighbor indices.
         """
         if query_vector.ndim == 1:
             query_vector = query_vector.reshape(1, -1)

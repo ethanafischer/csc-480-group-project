@@ -10,16 +10,16 @@ from sklearn.preprocessing import StandardScaler
 
 @dataclass
 class PreprocessResult:
-    df: pd.DataFrame                 # cleaned dataframe (with same row order as X_scaled)
-    X_scaled: np.ndarray             # scaled feature matrix
-    scaler: StandardScaler           # fitted scaler
-    feature_columns: List[str]       # columns used as features
+    """Container for the artifacts produced by the preprocessing pipeline."""
+    df: pd.DataFrame  # cleaned dataframe (with same row order as X_scaled)
+    X_scaled: np.ndarray  # scaled feature matrix
+    scaler: StandardScaler  # fitted scaler
+    feature_columns: List[str]  # columns used as features
 
 
 def load_dataset(csv_path: str) -> pd.DataFrame:
-    """Load the raw Spotify dataset."""
-    df = pd.read_csv(csv_path)
-    return df
+    """Load the raw Spotify dataset from CSV."""
+    return pd.read_csv(csv_path)
 
 
 def clean_and_select_features(
@@ -46,7 +46,8 @@ def scale_features(
 ) -> Tuple[np.ndarray, StandardScaler]:
     """
     Scale numeric feature columns using StandardScaler.
-    If scaler is provided, reuse it; otherwise fit a new one.
+
+    If a scaler is provided, reuse it; otherwise fit a new one.
     """
     X = df[feature_columns].values.astype(float)
 
