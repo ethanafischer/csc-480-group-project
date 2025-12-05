@@ -1,9 +1,13 @@
 import streamlit as st
 import pandas as pd
-from typing import Dict
 
 from recommender import VibeRecommender
-from config import ID_COL_TRACK_NAME, ID_COL_ARTISTS, ID_COL_GENRE
+from config import (
+    ID_COL_TRACK_NAME,
+    ID_COL_ARTISTS,
+    ID_COL_GENRE,
+    ID_COL_TRACK_ID,
+)
 
 
 @st.cache_resource
@@ -18,6 +22,35 @@ def format_track_row(row: pd.Series) -> str:
     return f"{name} — {artist}"
 
 
+SPOTIFY_TRACK_BASE_URL = "https://open.spotify.com/track/"
+
+
+def make_track_link(row: pd.Series) -> str:
+    """Return HTML link for a single track using its Spotify ID."""
+    track_id = row.get(ID_COL_TRACK_ID)
+    name = row.get(ID_COL_TRACK_NAME, "Unknown track")
+    if pd.isna(track_id):
+        return name
+    url = f"{SPOTIFY_TRACK_BASE_URL}{track_id}"
+    return f'<a href="{url}" target="_blank">{name}</a>'
+
+def render_recs_table(recs: pd.DataFrame, extra_cols) -> None:
+    """
+    Render recommendations as an HTML table with the song title hyperlinked.
+    extra_cols: list of column names to show in addition to the title.
+    """
+    if recs.empty:
+        st.info("No recommendations found.")
+        return
+
+    recs = recs.copy()
+    recs["Title"] = recs.apply(make_track_link, axis=1)
+
+    cols = ["Title"] + [c for c in extra_cols if c in recs.columns]
+    df_display = recs[cols].reset_index(drop=True)
+
+    st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 def page_seed_track(rec: VibeRecommender):
     st.header("🎧 Recommend by Seed Track")
 
@@ -27,7 +60,6 @@ def page_seed_track(rec: VibeRecommender):
     search_name = st.text_input("Track name (or part of it)")
     search_artist = st.text_input("Optional: artist name filter")
 
-    # Filter candidates based on search
     candidates = rec.df[[ID_COL_TRACK_NAME, ID_COL_ARTISTS]].drop_duplicates()
 
     if search_name:
@@ -42,7 +74,6 @@ def page_seed_track(rec: VibeRecommender):
             .str.contains(search_artist, case=False, na=False)
         ]
 
-    # Limit number of options to keep UI snappy
     MAX_OPTIONS = 50
     total_matches = len(candidates)
 
@@ -57,27 +88,25 @@ def page_seed_track(rec: VibeRecommender):
             "Refine your search to narrow down further."
         )
 
-    # Build labels only for the small candidate set
     candidates = candidates.copy()
     candidates["label"] = candidates.apply(
         lambda r: f"{r[ID_COL_TRACK_NAME]} — {r[ID_COL_ARTISTS]}",
         axis=1,
     )
 
-    # Now the selectbox is only over a small, filtered list → much faster
     selected_label = st.selectbox(
         "Choose seed track from results",
         options=candidates["label"].tolist(),
     )
 
-    n_recs = st.slider("Number of recommendations", 5, 30, 10)
+    N_RECS = 10  # fixed number of recommendations
 
     if st.button("Recommend similar tracks"):
         name, artist = selected_label.split(" — ", 1)
 
         seed_row, recs = rec.recommend_by_track(
             track_name=name,
-            n=n_recs,
+            n=N_RECS,
             artist_hint=artist,
         )
 
@@ -86,41 +115,36 @@ def page_seed_track(rec: VibeRecommender):
             return
 
         st.subheader("Seed track")
-        st.write(f"{seed_row[ID_COL_TRACK_NAME]} — {seed_row[ID_COL_ARTISTS]}")
+        seed_html = make_track_link(seed_row)
+        st.markdown(seed_html, unsafe_allow_html=True)
 
         st.subheader("Recommended tracks")
-        display_cols = [
-            ID_COL_TRACK_NAME,
-            ID_COL_ARTISTS,
-            ID_COL_GENRE,
-            "mood_cluster",
-            "distance",
-        ]
-        display_cols = [c for c in display_cols if c in recs.columns]
-        st.dataframe(recs[display_cols].reset_index(drop=True))
+        # We rely on dedupe logic in recommender; then we cut display to 10
+        recs = recs.head(N_RECS)
+        render_recs_table(
+            recs,
+            extra_cols=[ID_COL_ARTISTS, ID_COL_GENRE, "mood_cluster", "distance"],
+        )
 
 
 def page_mood(rec: VibeRecommender):
-    st.header("🌈 Recommend by Mood")
+    st.header("Recommend by Mood")
 
     st.write("Use the sliders to set the vibe you want:")
 
-    # --- basic controls ---
     st.subheader("Basic mood controls")
 
     energy = st.slider("Energy", 0.0, 1.0, 0.7, 0.05)
     valence = st.slider("Happiness (valence)", 0.0, 1.0, 0.7, 0.05)
     danceability = st.slider("Danceability", 0.0, 1.0, 0.7, 0.05)
 
-    # --- advanced controls toggle ---
     advanced = st.checkbox("Show advanced audio controls")
 
-    extra_overrides = None  # default: no advanced filtering
+    extra_overrides = None
 
     if advanced:
         st.subheader("Advanced controls")
 
-        # Spotify acousticness / instrumentalness are [0,1]
         acousticness = st.slider(
             "Acousticness (more acoustic ↔ more electric)",
             0.0,
@@ -135,7 +159,6 @@ def page_mood(rec: VibeRecommender):
             0.0,
             0.05,
         )
-        # Tempo in BPM
         tempo = st.slider(
             "Tempo (BPM)",
             60.0,
@@ -150,20 +173,20 @@ def page_mood(rec: VibeRecommender):
             "tempo": tempo,
         }
 
-    n_recs = st.slider("Number of recommendations", 5, 30, 10)
+    N_RECS = 10  # fixed
 
     if st.button("Find songs"):
         recs = rec.recommend_by_mood(
             energy=energy,
             valence=valence,
             danceability=danceability,
-            n=n_recs,
-            extra_overrides=extra_overrides,  # None if advanced is off
+            n=N_RECS,
+            extra_overrides=extra_overrides,
         )
 
-        # Base columns always shown
-        display_cols = [
-            ID_COL_TRACK_NAME,
+        recs = recs.head(N_RECS)
+
+        base_cols = [
             ID_COL_ARTISTS,
             ID_COL_GENRE,
             "mood_cluster",
@@ -171,15 +194,11 @@ def page_mood(rec: VibeRecommender):
             "valence",
             "danceability",
         ]
-
-        # Only show advanced feature columns if we actually used them
         if advanced:
-            display_cols += ["acousticness", "instrumentalness", "tempo"]
-
-        display_cols = [c for c in display_cols if c in recs.columns]
+            base_cols += ["acousticness", "instrumentalness", "tempo"]
 
         st.subheader("Recommended tracks")
-        st.dataframe(recs[display_cols].reset_index(drop=True))
+        render_recs_table(recs, extra_cols=base_cols)
 
 
 def page_clusters(rec: VibeRecommender):
