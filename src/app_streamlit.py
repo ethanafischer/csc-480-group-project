@@ -44,12 +44,33 @@ def render_recs_table(recs: pd.DataFrame, extra_cols: List[str]) -> None:
 
     recs = recs.copy()
 
-    # Always show track name first, then any requested extra columns that exist.
+    # Base columns: Title first
     cols = [ID_COL_TRACK_NAME] + [c for c in extra_cols if c in recs.columns]
-    df_display = recs[cols].reset_index(drop=True)
-    df_display = df_display.rename(columns={ID_COL_TRACK_NAME: "Title"})
 
-    st.dataframe(df_display)
+    # If we have track IDs, add a Spotify URL column
+    if ID_COL_TRACK_ID in recs.columns:
+        recs["Spotify URL"] = SPOTIFY_TRACK_BASE_URL + recs[ID_COL_TRACK_ID].astype(str)
+        cols.append("Spotify URL")
+
+        df_display = recs[cols].reset_index(drop=True)
+        df_display = df_display.rename(columns={ID_COL_TRACK_NAME: "Title"})
+
+        # Use LinkColumn so 'Spotify URL' is clickable
+        st.dataframe(
+            df_display,
+            column_config={
+                "Spotify URL": st.column_config.LinkColumn(
+                    label="Spotify",
+                    display_text="Open"
+                )
+            },
+            hide_index=True,
+        )
+    else:
+        df_display = recs[cols].reset_index(drop=True)
+        df_display = df_display.rename(columns={ID_COL_TRACK_NAME: "Title"})
+        st.dataframe(df_display, hide_index=True)
+
 
 
 def page_seed_track(rec: VibeRecommender) -> None:
